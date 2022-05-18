@@ -1,5 +1,6 @@
 import pandas as pd
 import requests
+from requests.adapters import HTTPAdapter
 import json
 import threading
 from queue import Queue
@@ -62,12 +63,15 @@ def cek_validitas_ktp(input_data, session):
                 count += 1
                 print("Wrong captcha")
             except json.decoder.JSONDecodeError:
-                print(resp.text)
                 print("JSONDecodeError")
+                login(session)
+                count += 1
             except KeyError:
                 print("KeyError")
+                count += 1
             except TypeError:
                 print("TypeError")
+                count += 1
 
 
 def do_check(q, list_data, session, length):
@@ -84,34 +88,39 @@ def do_check(q, list_data, session, length):
         q.task_done()
 
 
+def login(session):
+    session.mount("https://portal-dukcapil.bpjsketenagakerjaan.go.id", HTTPAdapter(max_retries=5))
+    session.get(
+            "https://portal-dukcapil.bpjsketenagakerjaan.go.id/webportal/login"
+        )
+    with session.get(
+        "https://portal-dukcapil.bpjsketenagakerjaan.go.id/webportal/publi"
+        "c/captchaImg"
+    ) as captcha:
+        img = captcha.text
+        img_jsn = json.loads(img)
+        cpa = Image.open(BytesIO(base64.b64decode(img_jsn["captcha"])))
+        cpa.show()
+        img_txt = input("enter captcha: ")
+
+    payload_login = {
+        "username": "D06",
+        "password": "BPJSTK123",
+        "captchaAnswer": img_txt
+    }
+    session.post(
+        "https://portal-dukcapil.bpjsketenagakerjaan.go.id/webportal/pos"
+        "tlogin",
+        data=payload_login
+    )
+    return session
+
 def run(data, length):
     img_txt = ""
     list_data = []
     with requests.Session() as session:
         # Login
-        session.get(
-            "https://portal-dukcapil.bpjsketenagakerjaan.go.id/webportal/login"
-        )
-        with session.get(
-            "https://portal-dukcapil.bpjsketenagakerjaan.go.id/webportal/publi"
-            "c/captchaImg"
-        ) as captcha:
-            img = captcha.text
-            img_jsn = json.loads(img)
-            cpa = Image.open(BytesIO(base64.b64decode(img_jsn["captcha"])))
-            cpa.show()
-            img_txt = input("enter captcha: ")
-
-        payload_login = {
-            "username": "D06",
-            "password": "BPJSTK123",
-            "captchaAnswer": img_txt
-        }
-        session.post(
-            "https://portal-dukcapil.bpjsketenagakerjaan.go.id/webportal/pos"
-            "tlogin",
-            data=payload_login
-        )
+        login(session)
         q = Queue(maxsize=0)
         for i in range(1):
             t = threading.Thread(target=do_check, args=(
