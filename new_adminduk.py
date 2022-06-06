@@ -1,5 +1,6 @@
 import pandas as pd
 import requests
+from requests.adapters import HTTPAdapter
 import json
 import threading
 from queue import Queue
@@ -64,10 +65,14 @@ def cek_validitas_ktp(input_data, session):
             except json.decoder.JSONDecodeError:
                 print(resp.text)
                 print("JSONDecodeError")
+                login_to_site(session)
+                count += 1
             except KeyError:
                 print("KeyError")
+                count += 1
             except TypeError:
                 print("TypeError")
+                count += 1
 
 
 def do_check(q, list_data, session, length):
@@ -84,34 +89,39 @@ def do_check(q, list_data, session, length):
         q.task_done()
 
 
+def login_to_site(session):
+    session.mount("https://portal-dukcapil.bpjsketenagakerjaan.go.id", HTTPAdapter(max_retries=5))
+    session.get(
+            "https://portal-dukcapil.bpjsketenagakerjaan.go.id/webportal/login"
+    )
+    with session.get(
+        "https://portal-dukcapil.bpjsketenagakerjaan.go.id/webportal/publi"
+        "c/captchaImg"
+    ) as captcha:
+        img = captcha.text
+        img_jsn = json.loads(img)
+        cpa = Image.open(BytesIO(base64.b64decode(img_jsn["captcha"])))
+        cpa.show()
+        img_txt = input("enter captcha: ")
+
+    payload_login = {
+        "username": "D06",
+        "password": "BPJSTK123",
+        "captchaAnswer": img_txt
+    }
+    session.post(
+        "https://portal-dukcapil.bpjsketenagakerjaan.go.id/webportal/pos"
+        "tlogin",
+        data=payload_login
+    )
+
+
 def run(data, length):
     img_txt = ""
     list_data = []
     with requests.Session() as session:
         # Login
-        session.get(
-            "https://portal-dukcapil.bpjsketenagakerjaan.go.id/webportal/login"
-        )
-        with session.get(
-            "https://portal-dukcapil.bpjsketenagakerjaan.go.id/webportal/publi"
-            "c/captchaImg"
-        ) as captcha:
-            img = captcha.text
-            img_jsn = json.loads(img)
-            cpa = Image.open(BytesIO(base64.b64decode(img_jsn["captcha"])))
-            cpa.show()
-            img_txt = input("enter captcha: ")
-
-        payload_login = {
-            "username": "D06",
-            "password": "BPJSTK123",
-            "captchaAnswer": img_txt
-        }
-        session.post(
-            "https://portal-dukcapil.bpjsketenagakerjaan.go.id/webportal/pos"
-            "tlogin",
-            data=payload_login
-        )
+        login_to_site(session)
         q = Queue(maxsize=0)
         for i in range(1):
             t = threading.Thread(target=do_check, args=(
@@ -146,7 +156,7 @@ def create_excel(datas):
     create_dir_ifn_exist(outdir)
     outname = os.path.join(
         outdir,
-        "KTP_{}.xlsx".format(datetime.now().strftime("%Y_%m_%d_%M_%S"))
+        "KTP_{}.xlsx".format(datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
     )
     writer = pd.ExcelWriter(
         outname, engine="xlsxwriter",
@@ -161,7 +171,7 @@ def create_excel(datas):
 if __name__ == "__main__":
     input_file = "new_adminduk_disduk.xlsx"
     input_abs = os.path.join(os.getcwd(), INDIR, input_file)
-    df = pd.read_excel(input_abs, 0)
+    df = pd.read_excel(input_abs, 2)
     data_dict = df.to_dict('records')
     results = run(data_dict, df.size)
     create_excel(results)

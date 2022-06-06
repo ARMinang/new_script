@@ -119,7 +119,7 @@ def create_excel(dutks):
     create_dir_ifn_exist(outdir)
     save_filename = os.path.join(
         outdir,
-        "PENGKINIAN_{}.xlsx".format(datetime.now().strftime("%Y_%m_%d_%M_%S"))
+        "PENGKINIAN_{}.xlsx".format(datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
     )
     with pd.ExcelWriter(
         save_filename,
