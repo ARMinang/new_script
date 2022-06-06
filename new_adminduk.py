@@ -64,7 +64,7 @@ def cek_validitas_ktp(input_data, session):
                 print("Wrong captcha")
             except json.decoder.JSONDecodeError:
                 print("JSONDecodeError")
-                login(session)
+                login_to_site(session)
                 count += 1
             except KeyError:
                 print("KeyError")
@@ -88,11 +88,11 @@ def do_check(q, list_data, session, length):
         q.task_done()
 
 
-def login(session):
+def login_to_site(session):
     session.mount("https://portal-dukcapil.bpjsketenagakerjaan.go.id", HTTPAdapter(max_retries=5))
     session.get(
             "https://portal-dukcapil.bpjsketenagakerjaan.go.id/webportal/login"
-        )
+    )
     with session.get(
         "https://portal-dukcapil.bpjsketenagakerjaan.go.id/webportal/publi"
         "c/captchaImg"
@@ -113,14 +113,13 @@ def login(session):
         "tlogin",
         data=payload_login
     )
-    return session
 
 def run(data, length):
     img_txt = ""
     list_data = []
     with requests.Session() as session:
         # Login
-        login(session)
+        login_to_site(session)
         q = Queue(maxsize=0)
         for i in range(1):
             t = threading.Thread(target=do_check, args=(
@@ -155,7 +154,7 @@ def create_excel(datas):
     create_dir_ifn_exist(outdir)
     outname = os.path.join(
         outdir,
-        "KTP_{}.xlsx".format(datetime.now().strftime("%Y_%m_%d_%M_%S"))
+        "KTP_{}.xlsx".format(datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
     )
     writer = pd.ExcelWriter(
         outname, engine="xlsxwriter",
@@ -168,9 +167,9 @@ def create_excel(datas):
 
 
 if __name__ == "__main__":
-    input_file = "new_adminduk_disduk.xlsx"
+    input_file = "new_adminduk_part.xlsx"
     input_abs = os.path.join(os.getcwd(), INDIR, input_file)
-    df = pd.read_excel(input_abs, 0)
+    df = pd.read_excel(input_abs, 3)
     data_dict = df.to_dict('records')
     results = run(data_dict, df.size)
     create_excel(results)
