@@ -59,7 +59,6 @@ def cek_validitas_ktp(input_data, session):
                     ]
                     filename = os.path.join(captcha_dir, "{}.png".format(img_txt))
                     cpa.save(filename)
-                    print(only_key[0])
                     return only_key[0]
                 count += 1
                 print("Wrong captcha")
@@ -109,7 +108,7 @@ def login_to_site(session):
         img_txt = input("enter captcha: ")
 
     payload_login = {
-        "username": "D06",
+        "username": "D03",
         "password": "BPJSTK123",
         "captchaAnswer": img_txt
     }
@@ -129,7 +128,7 @@ def run(data, length):
         for i in range(1):
             t = threading.Thread(target=do_check, args=(
                 q, list_data, session, length))
-            t.setDaemon()
+            t.setDaemon(daemonic=True)
             t.start()
         for single in data:
             q.put(single)
@@ -174,7 +173,7 @@ def create_excel(datas):
 if __name__ == "__main__":
     input_file = "new_adminduk_part.xlsx"
     input_abs = os.path.join(os.getcwd(), INDIR, input_file)
-    df = pd.read_excel(input_abs, 4)
+    df = pd.read_excel(input_abs, 5)
     data_dict = df.to_dict('records')
     results = run(data_dict, df.shape[0])
     create_excel(results)
