@@ -63,7 +63,6 @@ def cek_validitas_ktp(input_data, session):
                 count += 1
                 print("Wrong captcha")
             except json.decoder.JSONDecodeError:
-                print(resp.text)
                 print("JSONDecodeError")
                 login_to_site(session)
                 count += 1
@@ -114,7 +113,6 @@ def login_to_site(session):
         "tlogin",
         data=payload_login
     )
-
 
 def run(data, length):
     img_txt = ""
@@ -169,9 +167,9 @@ def create_excel(datas):
 
 
 if __name__ == "__main__":
-    input_file = "new_adminduk_disduk.xlsx"
+    input_file = "new_adminduk_part.xlsx"
     input_abs = os.path.join(os.getcwd(), INDIR, input_file)
-    df = pd.read_excel(input_abs, 2)
+    df = pd.read_excel(input_abs, 3)
     data_dict = df.to_dict('records')
     results = run(data_dict, df.size)
     create_excel(results)
