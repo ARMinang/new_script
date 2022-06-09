@@ -127,8 +127,7 @@ def run(data, length):
         q = Queue(maxsize=0)
         for i in range(1):
             t = threading.Thread(target=do_check, args=(
-                q, list_data, session, length))
-            t.setDaemon(daemonic=True)
+                q, list_data, session, length), daemon=True)
             t.start()
         for single in data:
             q.put(single)
@@ -173,7 +172,7 @@ def create_excel(datas):
 if __name__ == "__main__":
     input_file = "new_adminduk_part.xlsx"
     input_abs = os.path.join(os.getcwd(), INDIR, input_file)
-    df = pd.read_excel(input_abs, 5)
+    df = pd.read_excel(input_abs, 8)
     data_dict = df.to_dict('records')
     results = run(data_dict, df.shape[0])
     create_excel(results)
