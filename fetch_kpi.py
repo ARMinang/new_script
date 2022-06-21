@@ -7,7 +7,9 @@ from bs4 import BeautifulSoup
 import random
 from datetime import datetime
 import unicodedata
-import re
+from google.oauth2 import service_account
+import gspread
+
 
 INDIR = "indir"
 OUTDIR = "outdir"
@@ -75,6 +77,17 @@ async def run(data):
             tasks.append(task)
         results = await asyncio.gather(*tasks)
         return results
+
+def create_credentials():
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    credentials = service_account.Credentials.from_service_account_file(
+        "./credentials.json",
+        scopes=scopes
+    )
+    return gspread.authorize(credentials)
 
 
 def create_excel(data):
