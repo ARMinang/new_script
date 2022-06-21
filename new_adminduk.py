@@ -11,11 +11,16 @@ import time
 import sys
 import os
 from datetime import datetime
-
+from solve_captcha import captcha_detection
+import argparse
+from tqdm import tqdm
 
 CAPTCHA_DIR = "captcha"
 INDIR = "indir"
 OUTDIR = "outdir"
+
+LIST_KACAB = ["D00", "D01", "D02", "D03", "D04", "D05", "D06", "C00", "C01", "C02"]
+
 
 def create_dir_ifn_exist(path):
     is_exists = os.path.exists(path)
@@ -38,8 +43,8 @@ def cek_validitas_ktp(input_data, session):
             cpta_raw = cpta.text
             cpta_jsn = json.loads(cpta_raw)
             cpa = Image.open(BytesIO(base64.b64decode(cpta_jsn["captcha"])))
-            cpa.show()
-            img_txt = input("enter captcha for {}: ".format(input_data["ktp"]))
+            # cpa.show()
+            img_txt = captcha_detection(cpa)# input("enter captcha for {}: ".format(input_data["ktp"]))
             params = {"captchaAnswer": img_txt}
 
         with session.get(url, params=params) as resp:
@@ -48,7 +53,7 @@ def cek_validitas_ktp(input_data, session):
                 lol = json.loads(content)
                 captcha_dir = os.path.join(os.getcwd(), CAPTCHA_DIR)
                 create_dir_ifn_exist(captcha_dir)
-                if lol != 99:
+                if lol != 99 or lol != 88 or lol != "88%":
                     json_cont = lol["content"]
                     if any("RESPONSE_DESC" in d for d in json_cont):
                         filename = os.path.join(captcha_dir, "{}.png".format(img_txt))
@@ -59,37 +64,31 @@ def cek_validitas_ktp(input_data, session):
                     ]
                     filename = os.path.join(captcha_dir, "{}.png".format(img_txt))
                     cpa.save(filename)
-                    return only_key[0]
+                    input_data.pop("ktp")
+                    return {**only_key[0], **input_data}
                 count += 1
-                print("Wrong captcha")
             except json.decoder.JSONDecodeError:
-                print("JSONDecodeError")
                 login_to_site(session)
                 count += 1
             except KeyError:
-                print("KeyError")
                 count += 1
             except TypeError:
-                print("TypeError")
                 count += 1
-            except IndexError:
-                print("IndexError")
-                print(input_data["ktp"])
-                count += 2
 
 
 def do_check(q, list_data, session, length):
     counter = 0
-    while True:
-        sys.stdout.write("\r%d%%\r" % ((counter / length) * 100))
-        sys.stdout.flush()
-        to_get = q.get()
-        per_ktp = cek_validitas_ktp(to_get, session)
-        time.sleep(1)
-        if per_ktp:
-            list_data.append(per_ktp)
-        counter += 1
-        q.task_done()
+    with tqdm(total=length) as pbar:
+        while True:
+            # sys.stdout.write("\r%d%%\r" % ((counter / length) * 100))
+            # sys.stdout.flush()
+            to_get = q.get()
+            per_ktp = cek_validitas_ktp(to_get, session)
+            time.sleep(1)
+            if per_ktp:
+                list_data.append(per_ktp)
+            pbar.update(1)
+            q.task_done()
 
 
 def login_to_site(session):
@@ -104,8 +103,8 @@ def login_to_site(session):
         img = captcha.text
         img_jsn = json.loads(img)
         cpa = Image.open(BytesIO(base64.b64decode(img_jsn["captcha"])))
-        cpa.show()
-        img_txt = input("enter captcha: ")
+        # cpa.show()
+        img_txt = captcha_detection(cpa)
 
     payload_login = {
         "username": "D03",
@@ -118,8 +117,8 @@ def login_to_site(session):
         data=payload_login
     )
 
+
 def run(data, length):
-    img_txt = ""
     list_data = []
     with requests.Session() as session:
         # Login
@@ -143,6 +142,7 @@ def create_excel(datas):
     df = pd.DataFrame(
         data,
         columns=[
+            "reff_kpj",	"reff_nama", "reff_tempat_lahir", "reff_tgl_lahir",
             "NIK", "NO_KK", "NAMA_LGKP", "TMPT_LHR", "TGL_LHR",
             "JENIS_KLMIN", "STATUS_KAWIN", "GOL_DARAH", "NAMA_LGKP_IBU",
             "STAT_HBKEL", "ALAMAT", "NO_RT", "NO_RW",
@@ -170,9 +170,12 @@ def create_excel(datas):
 
 
 if __name__ == "__main__":
+    my_parser = argparse.ArgumentParser()
+    my_parser.add_argument('--sheet', action='store', type=int, required=True)
+    args = my_parser.parse_args()
     input_file = "new_adminduk_part.xlsx"
     input_abs = os.path.join(os.getcwd(), INDIR, input_file)
-    df = pd.read_excel(input_abs, 8)
+    df = pd.read_excel(input_abs, args.sheet)
     data_dict = df.to_dict('records')
     results = run(data_dict, df.shape[0])
     create_excel(results)

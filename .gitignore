@@ -4,3 +4,7 @@ outdir/
 indir/
 test.py
 logo.png
+CAPTCHA_frozen_inference_graph.pb
+CAPTCHA_frozen_inference_graph.pb.bak
+CAPTCHA_frozen_inference_graph.pb.bak2
+CAPTCHA_labelmap.pbtxt

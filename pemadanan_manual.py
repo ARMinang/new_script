@@ -5,9 +5,11 @@ from aiohttp import ClientSession as cs
 import os
 from bs4 import BeautifulSoup
 import json5
+import json
 import random
 from datetime import datetime
-
+from itertools import groupby
+from aiohttp import client_exceptions
 
 INDIR = "indir"
 OUTDIR = "outdir"
@@ -36,7 +38,9 @@ async def get_tk_data(input_data, session):
                 data_tk = json5.loads(td[0].a["onclick"][21:-58])
                 if data_tk:
                     return data_tk
-                return None
+                data_tk = input_data
+                data_tk["MSG"] = "Data Tidak ditemukan"
+                return data_tk
         except aiohttp.client_exceptions.ClientOSError:
             print("ClientOSError")
             count += 1
@@ -53,7 +57,7 @@ async def get_tk_data(input_data, session):
             ret_data = dict()
             ret_data["MSG"] = "Data mengandung Apostrophe, silahkan lakukan pemadanan manual"
             return ret_data
-        
+
 
 async def cek_eligible(input_data, session):
     url = "http://smile.bpjsketenagakerjaan.go.id/smile/mod_kn/ajax/kn502755_popup_dukcapil.php"
@@ -180,7 +184,7 @@ async def submit_pp(data, data_um, data_similarity, pp, session):
         "tb_keterangan": "",
         "kode_form": "",
         "task_form": "New",
-        "txt_diajukan_ke_fungsi_approval": "Kepala Bidang Pemasaran",
+        "txt_diajukan_ke_fungsi_approval": "Kepala Kantor Cabang Perintis", # "Kepala Bidang Pemasaran", # "Kepala Kantor Cabang Perintis",
         "kpj": data["kpj"],
         "nama_lengkap": data_um["NAMA_LENGKAP"],
         "hdn_kode_tk": data_um["KODE_TK"],
@@ -257,21 +261,34 @@ async def safe_download(data, session):
         if data_eli and data_similarity and pp:
             return await submit_pp(data, data_process, data_similarity, pp, session)
         ret_data = data.copy()
-        ret_data["MSG"] = data_process['MSG']
+        try:
+            if data_process:
+                ret_data["MSG"] = data_process['MSG']
+        except KeyError:
+            ret_data["MSG"] = "Something went wrong"
         return ret_data
 
 
 async def run(data):
     tasks = []
     async with cs() as session:
+        # payload_login = {
+        #     "login": "SE112229",
+        #     "password": "KAISAR0315" # KAISAR0315, ARIN0314
+        # }
+        # payload_role = "rule=9%7CD00"
+        # query_role = {
+        #     "role": "9|D00",
+        #     "rolename": "PAP - Petugas Administrasi Peserta ( D00 )"
+        # }
         payload_login = {
-            "login": "SE112229",
-            "password": "ARIN0314"
+            "login": "AR188760",
+            "password": "@ARIF111"
         }
-        payload_role = "rule=9%7CD00"
+        payload_role = "rule=27%7CD14"
         query_role = {
-            "role": "9|D00",
-            "rolename": "PAP - Petugas Administrasi Peserta ( D00 )"
+            "role": "27|D14",
+            "rolename": "PMPPU - Penata Madya Pelayanan dan Umum ( D14 )"
         }
         # Login
         async with session.post(
