@@ -1,10 +1,6 @@
-# Welcome to CAPTCHA break tutorial !
-
-# Imports
 import cv2
 import numpy as np
 import os
-import sys
 # run on CPU, to run on GPU comment this line or write '0'
 # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'

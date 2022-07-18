@@ -6,7 +6,6 @@ from datetime import datetime, date
 import aiohttp
 import os
 
-
 URL = (
     "http://rptserver.bpjsketenagakerjaan.go.id/reports/rwservlet/setauth?butt"
     "on=Submit&username=smile&password=smilekanharimu&authtype=D&mask=GQ%253D%"
