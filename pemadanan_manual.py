@@ -1,3 +1,4 @@
+import argparse
 import pandas as pd
 import asyncio
 import aiohttp
@@ -8,8 +9,6 @@ import json5
 import json
 import random
 from datetime import datetime
-from itertools import groupby
-from aiohttp import client_exceptions
 
 INDIR = "indir"
 OUTDIR = "outdir"
@@ -165,7 +164,7 @@ async def create_pp(session):
             count += 1
             await asyncio.sleep(5)
 
-async def submit_pp(data, data_um, data_similarity, pp, session):
+async def submit_pp(data, data_um, data_similarity, pp, pmap, session):
     url = "http://smile.bpjsketenagakerjaan.go.id/smile/mod_kn/ajax/kn502755_action.php?{}".format(random.random())
     payload = {
         "TYPE": "New",
@@ -184,7 +183,8 @@ async def submit_pp(data, data_um, data_similarity, pp, session):
         "tb_keterangan": "",
         "kode_form": "",
         "task_form": "New",
-        "txt_diajukan_ke_fungsi_approval": "Kepala Kantor Cabang Perintis", # "Kepala Bidang Pemasaran", # "Kepala Kantor Cabang Perintis",
+        "txt_diajukan_ke_fungsi_approval": pmap["approval"],
+        # "txt_diajukan_ke_fungsi_approval": "Kepala Bidang Pemasaran",
         "kpj": data["kpj"],
         "nama_lengkap": data_um["NAMA_LENGKAP"],
         "hdn_kode_tk": data_um["KODE_TK"],
@@ -231,6 +231,7 @@ async def submit_pp(data, data_um, data_similarity, pp, session):
                 sukses = json5.loads(content)
                 ret_data = data.copy()
                 ret_data["MSG"] = sukses["msg"]
+                ret_data["PP"] = pp
                 return ret_data
         except aiohttp.client_exceptions.ClientOSError:
             print("ClientOSError")
@@ -245,7 +246,7 @@ async def submit_pp(data, data_um, data_similarity, pp, session):
             count += 1
             await asyncio.sleep(5)
 
-async def safe_download(data, session):
+async def safe_download(data, pmap, session):
     sem = asyncio.Semaphore(10)
     async with sem:
         data_eli = False
@@ -259,7 +260,7 @@ async def safe_download(data, session):
         if data_eli and data_similarity:
             pp = await create_pp(session)
         if data_eli and data_similarity and pp:
-            return await submit_pp(data, data_process, data_similarity, pp, session)
+            return await submit_pp(data, data_process, data_similarity, pp, pmap, session)
         ret_data = data.copy()
         try:
             if data_process:
@@ -269,51 +270,55 @@ async def safe_download(data, session):
         return ret_data
 
 
-async def run(data):
-    tasks = []
-    async with cs() as session:
-        # payload_login = {
-        #     "login": "SE112229",
-        #     "password": "KAISAR0315" # KAISAR0315, ARIN0314
-        # }
-        # payload_role = "rule=9%7CD00"
-        # query_role = {
-        #     "role": "9|D00",
-        #     "rolename": "PAP - Petugas Administrasi Peserta ( D00 )"
-        # }
-        payload_login = {
-            "login": "AR188760",
-            "password": "@ARIF111"
-        }
-        payload_role = "rule=27%7CD14"
-        query_role = {
-            "role": "27|D14",
-            "rolename": "PMPPU - Penata Madya Pelayanan dan Umum ( D14 )"
-        }
-        # Login
-        async with session.post(
-            "http://smile.bpjsketenagakerjaan.go.id/smile/act/login.bpjs",
-            data=payload_login
-        ) as login:
-            await login.text()
-        # Set Role
-        async with session.post(
-            "http://smile.bpjsketenagakerjaan.go.id/smile/act/setrule.bpjs",
-            data=payload_role,
-            params=query_role
-        ) as set_role:
-            await set_role.text()
-        for single in data:
-            task = asyncio.ensure_future(safe_download(single, session))
-            tasks.append(task)
-        results = await asyncio.gather(*tasks)
-        return results
+async def run(data, kode_kantor):
+    with open(os.path.join(os.getcwd(), "pmap.json")) as f:
+        pmaps = json.load(f)
+        pmap = [d for d in pmaps if d["kode_kantor"] == kode_kantor][0]
+        tasks = []
+        async with cs() as session:
+            # payload_login = {
+            #     "login": "SE112229",
+            #     "password": "KAISAR0315" # KAISAR0315, ARIN0314
+            # }
+            # payload_role = "rule=9%7CD00"
+            # query_role = {
+            #     "role": "9|D00",
+            #     "rolename": "PAP - Petugas Administrasi Peserta ( D00 )"
+            # }
+            payload_login = {
+                "login": pmap["user"],
+                "password": pmap["pass"]
+            }
+            payload_role = pmap["payload_rule"]
+            query_role = {
+                "role": pmap["role"],
+                "rolename": pmap["rolename"]
+            }
+            # Login
+            async with session.post(
+                "http://smile.bpjsketenagakerjaan.go.id/smile/act/login.bpjs",
+                data=payload_login
+            ) as login:
+                await login.text()
+            # Set Role
+            async with session.post(
+                "http://smile.bpjsketenagakerjaan.go.id/smile/act/setrule.bpjs",
+                data=payload_role,
+                params=query_role
+            ) as set_role:
+                await set_role.text()
+            for single in data:
+                task = asyncio.ensure_future(safe_download(single, pmap, session))
+                tasks.append(task)
+            results = await asyncio.gather(*tasks)
+            return results
 
 
 def create_excel(data):
     df = pd.DataFrame(
         data,
         columns=[
+            "PP",
             "kpj",
             "NOMOR_IDENTITAS",
             "NAMA_LENGKAP",
@@ -351,19 +356,32 @@ def create_excel(data):
 if __name__ == "__main__":
     input_file = "test_pemadanan.xlsx"
     input_abs = os.path.join(os.getcwd(), INDIR, input_file)
+    outdir = os.path.join(os.getcwd(), OUTDIR)
+    create_dir_ifn_exist(outdir)
+    outname = os.path.join(
+        outdir,
+        "KTP_{}.xlsx".format(datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
+    )
+    parser = argparse.ArgumentParser(description='Script Melakukan Pemadanan pada SMILE')
+    parser.add_argument(
+        '-sheet', type=int, default=0, help='Sheet index start from 0, default=0'
+    )
+    parser.add_argument(
+        '-kode_kantor', type=str, help="Kode Kantor", default="D00", action="store"
+    )
+    parser.add_argument(
+        '--infile', type=str, help='input file xlsx', default=input_abs, action="store"
+    )
+    parser.add_argument(
+        '--outfile', type=str, help='output file xlsx', default=outname, action="store"
+    )
+    args = parser.parse_args()
     df = pd.read_excel(
-        input_abs
+        args.infile,
+        args.sheet
     )
     df["TGL_LAHIR"] = df["TGL_LAHIR"].dt.strftime("%d/%m/%Y")
     data_dict = df.to_dict('records')
-    # data_dict = []
-    # tk = dict()
-    # tk["kpj"] = "22016164588"
-    # tk["NOMOR_IDENTITAS"] = "1204060303940004"
-    # tk["NAMA_LENGKAP"] = "YELISMAN LAIA"
-    # tk["TGL_LAHIR"] = "03/03/1994"
-    # tk["TEMPAT_LAHIR"] = "HILI'OTALUA"
-    # data_dict.append(tk)
-    result = asyncio.run(run(data_dict))
+    result = asyncio.run(run(data_dict, args.kode_kantor))
     if result:
         create_excel(result)

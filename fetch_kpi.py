@@ -7,9 +7,10 @@ from bs4 import BeautifulSoup
 import random
 from datetime import datetime
 import unicodedata
-from google.oauth2 import service_account
-import gspread
+from pymongo import MongoClient
+import certifi
 
+ca = certifi.where()
 
 INDIR = "indir"
 OUTDIR = "outdir"
@@ -78,47 +79,39 @@ async def run(data):
         results = await asyncio.gather(*tasks)
         return results
 
-def create_credentials():
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive",
-    ]
-    credentials = service_account.Credentials.from_service_account_file(
-        "./credentials.json",
-        scopes=scopes
-    )
-    return gspread.authorize(credentials)
-
 
 def create_excel(data):
-    final_data = []
-    for entries in data:
-        for entry in entries:
-            final_data.append(entry)
+    final_data = [x for xs in data for x in xs]
     df = pd.DataFrame(
         final_data,
         columns=KEYS
     )
     for num in DT_INTEGER:
-        df[num] = df[num].str.replace(".", "")
+        df[num] = df[num].str.replace(".", "", regex=False)
         df[num] = pd.to_numeric(df[num].str.replace(",", "."), downcast="float")
     df["Variance"] = pd.to_numeric(df[num], downcast="float")
     df.round(2)
-    outdir = os.path.join(os.getcwd(), OUTDIR)
-    create_dir_ifn_exist(outdir)
-    save_filename = os.path.join(
-        outdir,
-        "KPI_{}.xlsx".format(datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
-    )
-    with pd.ExcelWriter(
-        save_filename,
-        engine="xlsxwriter",
-        datetime_format='dd-mm-yyyy',
-    ) as writer:
-        df.to_excel(
-            writer, sheet_name="Lol",
-            index=False
-        )
+    ca = certifi.where()
+    cluster = "mongodb+srv://adrianbabame:ImoNewo69@cluster0.atcmjjv.mongodb.net/?retryWrites=true&w=majority"
+    client = MongoClient(cluster, tlsCAFile=ca)
+    db = client.streamlit_kpi
+    duadua = db.kpidaily
+    results = duadua.insert_many(df.to_dict("records"))
+    # outdir = os.path.join(os.getcwd(), OUTDIR)
+    # create_dir_ifn_exist(outdir)
+    # save_filename = os.path.join(
+    #     outdir,
+    #     "KPI_{}.xlsx".format(datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
+    # )
+    # with pd.ExcelWriter(
+    #     save_filename,
+    #     engine="xlsxwriter",
+    #     datetime_format='dd-mm-yyyy',
+    # ) as writer:
+    #     df.to_excel(
+    #         writer, sheet_name="Lol",
+    #         index=False
+    #     )
 
 
 if __name__ == "__main__":

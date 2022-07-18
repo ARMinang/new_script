@@ -1,0 +1,20 @@
+[
+    {
+        "kode_kantor": "D14",
+        "user": "AR188760",
+        "pass": "@ARIF111",
+        "payload_rule": "rule=27%7CD14",
+        "role": "27|D14",
+        "rolename": "PMPPU - Penata Madya Pelayanan dan Umum ( D14 )",
+        "approval": "Kepala Kantor Cabang Perintis"
+    },
+    {
+        "kode_kantor": "D00",
+        "user": "LI260820",
+        "pass": "FATHAN2021",
+        "payload_rule": "rule=9%7CD00",
+        "role": "9|D00",
+        "rolename": "PAP - Petugas Administrasi Peserta ( D00 )",
+        "approval": "Kepala Bidang Pemasaran"
+    }
+]

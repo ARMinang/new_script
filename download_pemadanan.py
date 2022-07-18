@@ -1,14 +1,12 @@
-from turtle import xcor
-import xml.etree.ElementTree as etree
+import json
 import pandas as pd
 import asyncio
 from aiohttp import ClientSession as cs
-from datetime import datetime, date
-import aiohttp
+from datetime import datetime
 import aiohttp.client_exceptions as ce
 import os
 import csv
-
+from dw_pemadanan_npp import dw_tk_invalid
 INDIR = "indir"
 OUTDIR = "outdir"
 
@@ -18,7 +16,8 @@ URL = (
     "on=Submit&username=smile&password=smilekanharimu&authtype=D&mask=GQ%253D%"
     "253D&isjsp=no&database=dboltp&nextpage=destype%3Dcache%26desformat%3DDELI"
     "MITEDDATA%26delimiter%3D|%26report%3DKNR1415.rdf%26userid%3D%2Fdata%2Frep"
-    "orts%2Fkn%26%26P_KODE_KANTOR%3D'D00'%26P_KODE_USER%3D'{pembina}'"
+    "orts%2Fkn%26%26P_KODE_KANTOR%3D'{kode_kantor}'%26P_KODE_USER%3D'{pembina}"
+    "'"
 )
 
 HEADER = ["NPP", "NIK_INVALID_AKTIF", "NIK_INVALID_NA", "PEMBINA"]
@@ -50,7 +49,7 @@ async def dowload_pengkinian(data, session):
                         if int(x["NIK_INVALID_NA"]) > 0 and int(x["NIK_INVALID_AKTIF"]) > 0:
                             list_npp.append(x)
                     except ValueError:
-                        print("Nope")
+                        pass
                 return list_npp
         except ce.ServerDisconnectedError:
             print("ServerDisconnectedError: " + data["pembina"] + " - " + str(loop))
@@ -58,14 +57,10 @@ async def dowload_pengkinian(data, session):
             await asyncio.sleep(10)
 
 
-def do_download(npp, session):
-    return dowload_pengkinian(npp, session)
-
-
 async def safe_download(npp, session):
     sem = asyncio.Semaphore(2)
     async with sem:
-        return await do_download(npp, session)
+        return await dowload_pengkinian(npp, session)
 
 
 async def run(data):
@@ -78,56 +73,65 @@ async def run(data):
         return result
 
 
-def create_excel(dutks):
-    data = []
-    for dutk in dutks:
-        if dutk is not None:
-            data.extend(dutk)
-            
+def create_excel(npps, tks):
+    all_tk = []
+    for data in tks:
+        all_tk.extend(data)
     df = pd.DataFrame(
-        data,
+        npps,
         columns=HEADER
     )
+    df_tk = pd.DataFrame.from_dict(all_tk)
+    df_tk["TGL_LAHIR"] = df_tk['TGL_LAHIR'].dt.date
     for num in DT_INTEGER:
         df[num] = pd.to_numeric(df[num], downcast="float")
+
+    # Create re-cap of data invalid per pembina
+    df_rec = df_tk.groupby(["PEMBINA"])["PEMBINA"].count()
+    # Create output filename
     outdir = os.path.join(os.getcwd(), OUTDIR)
     create_dir_ifn_exist(outdir)
     save_filename = os.path.join(
         outdir,
-        "NIK_INVALID_{}.xlsx".format(datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
+        "NIK_INVALID_TK_{}.xlsx".format(datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
     )
+
+    # Save downloaded data as xslx file
     with pd.ExcelWriter(
         save_filename,
         engine="xlsxwriter",
-        datetime_format='mm-yyyy',
+        datetime_format='dd-mm-yyyy',
     ) as writer:
+        df_tk.to_excel(
+            writer, sheet_name="Data Invalid",
+            index=False,
+            columns=[
+                "NPP", "DIV", "NAMA_PERUSAHAAN", "NIK", "KPJ", "NAMA_TK", "TEMPAT_LAHIR",
+                "TGL_LAHIR", "TGL_KEPS", "BLTH_NA", "PEMBINA"
+            ]
+        )
         df.to_excel(
-            writer, sheet_name="Lol",
+            writer, sheet_name="Rekap",
+            index=False
+        )
+        df_rec.to_excel(
+            writer, sheet_name="Rekap-pembina",
             index=False
         )
 
-
-def start_download(sheet):
-    # variable npp dan periode
-    pembinas = [
-        "AK153580", "AL160740", "AR134060", "ED160810", "FA165960", "FE174690",
-        "FI252510", "GR153600", "HA258950", "NI273920", "RA174700", "RA248900",
-        "RO259060", "SU122530", "AD167270", "SR234440", "RA160700"
-    ]
-    # pembinas = [
-    #     "ER174750", "RA179850", "SE251740", "TI277790", "FA251440", "TR178810"
-    #     "AN188630"
-    # ]
-    today = datetime.today().strftime("%d-%m-%Y")
-    all_data = []
-    for pembina in pembinas:
-        data_dict = dict()
-        data_dict["pembina"] = pembina
-        data_dict["tanggal"] = today
-        all_data.append(data_dict)
-    result = asyncio.run(run(all_data))
-    create_excel(result)
+def start_download():
+    pembinas = []
+    with open(os.path.join(os.getcwd(), "pembinas.json")) as f:
+        pembinas = json.load(f)
+    result = asyncio.run(run(pembinas))
+    npps = []
+    for npp in result:
+        if npp is not None:
+            npps.extend(npp)
+    data_download_npp = [d["NPP"] for d in npps]
+    data_tk = asyncio.run(dw_tk_invalid(data_download_npp))
+    create_excel(npps, data_tk)
 
 
 if __name__ == '__main__':
-    start_download(0)
+    start_download()

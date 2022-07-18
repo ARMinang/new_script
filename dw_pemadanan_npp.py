@@ -2,8 +2,7 @@ from aiohttp import ClientSession
 import aiohttp.client_exceptions as ce
 import csv
 import asyncio
-import pandas as pd
-
+from download_dutk import compare_age
 
 async def fetch(npp, session):
     url = (
@@ -27,6 +26,9 @@ async def fetch(npp, session):
                         lines, delimiter="|", skipinitialspace=True
                     )
                 ]
+                for i in a:
+                    if i["TGL_LAHIR"] != "":
+                        age, i["TGL_LAHIR"] = compare_age(i["TGL_LAHIR"]) 
                 return a
         except ce.ServerDisconnectedError:
             print("ServerDisconnectedError: " + npp + " - " + str(loop))
@@ -40,7 +42,7 @@ async def safe_download(npp, session):
         return await fetch(npp, session)
 
 
-async def run(data):
+async def dw_tk_invalid(data):
     tasks = []
     async with ClientSession() as session:
         for npp in data:
@@ -49,29 +51,3 @@ async def run(data):
             )
             tasks.append(task)
         return await asyncio.gather(*tasks)
-
-
-def safe_as_excel(dict_data):
-    all_data = []
-    for data in dict_data:
-        all_data.extend(data)
-    df = pd.DataFrame.from_dict(all_data)
-    df.to_excel(
-        './outdir/tk_invalid_all_baru_220610.xlsx',
-        index=None,
-        header=True,
-        columns=[
-
-        ]
-    )
-
-
-if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    xls = pd.read_excel(
-        r"D:\Script\dw_pemadanan_npp.xlsx"
-    )["npp"].tolist()
-    # xls = ["18010045"]
-    future = asyncio.ensure_future(run(xls))
-    all_data = loop.run_until_complete(future)
-    safe_as_excel(all_data)

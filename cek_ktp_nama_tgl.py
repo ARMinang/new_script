@@ -24,9 +24,9 @@ async def cek_validitas_ktp(input_data, session):
     )
     payload = {
         'TYPE': "NAMA_LENGKAP",
-        'KEYWORD': input_data['nama'],
+        'KEYWORD': input_data['reff_nama'],
         'TYPE2': "TGL_LAHIR",
-        'KEYWORD2A': input_data['tgl_lahir'].strftime("%d/%m/%Y"),
+        'KEYWORD2A': input_data['reff_tgl_lahir'].strftime("%d/%m/%Y"),
         'KEYWORD2B': "",
         'KEYWORD2C': ""
     }
@@ -41,19 +41,23 @@ async def cek_validitas_ktp(input_data, session):
                     for tk in lol:
                         ttl = tk["TTL"]
                         tempat_tanggal_lahir = ttl.split(",")
-                        tk["TEMPAT_LAHIR"] = tempat_tanggal_lahir[0]
-                        tgl_lahir = datetime.strptime(
-                            tempat_tanggal_lahir[-1].strip(), "%d-%b-%y"
-                        )
-                        if tgl_lahir > datetime.now():
-                            tgl_lahir -= relativedelta(years=100)
-                        tk["TGL_LAHIR"] = tgl_lahir
-                        ret_data.append(tk)
+                        try:
+                            tk["TEMPAT_LAHIR"] = tempat_tanggal_lahir[0]
+                            tgl_lahir = datetime.strptime(
+                                tempat_tanggal_lahir[-1].strip(), "%d-%b-%y"
+                            )
+                            if tgl_lahir > datetime.now():
+                                tgl_lahir -= relativedelta(years=100)
+                            tk["TGL_LAHIR"] = tgl_lahir
+                        except ValueError as e:
+                            tk["TEMPAT_LAHIR"] = ""
+                            tk["TGL_LAHIR"] = tk["TTL"]
+                        ret_data.append({**tk, **input_data})
                     return ret_data
                 except json.decoder.JSONDecodeError:
                     count += 1
                     await asyncio.sleep(5)
-                except KeyError:
+                except KeyError as e:
                     count += 1
                     await asyncio.sleep(5)
         except aiohttp.client_exceptions.ClientOSError:
@@ -77,7 +81,7 @@ async def run(data):
     async with cs() as session:
         payload_login = {
             "login": "AK153580",
-            "password": "TROLOLO10"
+            "password": "TROLOLO15"
         }
         payload_role = "rule=8%7CD00"
         query_role = {
@@ -113,6 +117,7 @@ def create_excel(datas):
     df = pd.DataFrame(
         data,
         columns=[
+            "reff_kpj", "reff_nama", "reff_tgl_lahir",
             "NAMA_LGKP", "TEMPAT_LAHIR", "TGL_LAHIR", "NIK", "NO_KK",
             "JENIS_KLMIN", "NAMA_LGKP_IBU", "ALAMAT_LENGKAP", "KODE_POS"
         ],
@@ -143,12 +148,12 @@ def create_excel(datas):
 
 
 if __name__ == "__main__":
+    input_file = "cek_ktp_nama.xlsx"
+    input_abs = os.path.join(os.getcwd(), INDIR, input_file)
     df = pd.read_excel(
-        r"D:\Documents\cek_ktp_nama.xlsx",
-        sheet_name=3
+        input_abs,
+        0
     )
     data_dict = df.to_dict('records')
-    loop = asyncio.get_event_loop()
-    future = asyncio.ensure_future(run(data_dict))
-    results = loop.run_until_complete(future)
+    results = asyncio.run(run(data_dict))
     create_excel(results)

@@ -2,9 +2,10 @@ import xml.etree.ElementTree as etree
 import pandas as pd
 import asyncio
 from aiohttp import ClientSession as cs
-from datetime import datetime, date
+from datetime import datetime
 import aiohttp
 import os
+import time
 
 
 INDIR = "indir"
@@ -162,4 +163,6 @@ def start_download(sheet):
 
 
 if __name__ == '__main__':
+    start_time = time.time()
     start_download(0)
+    print("--- %s seconds ---" % (time.time() - start_time))
